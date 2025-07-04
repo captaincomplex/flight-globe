@@ -1,0 +1,101 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Globe Viewer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three-globe@2.26.6/dist/three-globe.min.js"></script>
+    <script src="https://unpkg.com/d3@7.8.4/dist/d3.min.js"></script>
+    <script src="https://unpkg.com/three/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        console.log("Page loaded");
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 400;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableZoom = true;
+
+        const globe = new ThreeGlobe()
+            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg')
+            .arcsData([])
+            .arcColor(() => '#FF0000')
+            .arcDashLength(0.4)
+            .arcDashGap(4)
+            .arcDashInitialGap(() => Math.random() * 5)
+            .arcDashAnimateTime(1000)
+            .arcAltitudeAutoScale(true);
+
+        scene.add(globe);
+
+        scene.add(new THREE.AmbientLight(0xbbbbbb));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        dirLight.position.set(0, 50, 50);
+        scene.add(dirLight);
+
+        console.log("Starting fetch...");
+
+        fetch('flights.json')
+            .then(res => {
+                if (!res.ok) {
+                    console.error("Failed to load JSON:", res.status);
+                    throw new Error('Network response was not ok');
+                }
+                console.log("JSON loaded successfully.");
+                return res.json();
+            })
+            .then(flights => {
+                console.log("JSON data:", flights);
+
+                const arcs = flights
+                    .filter(flight => flight.from[0] !== flight.to[0] || flight.from[1] !== flight.to[1])
+                    .map(flight => ({
+                        startLat: flight.from[0],
+                        startLng: flight.from[1],
+                        endLat: flight.to[0],
+                        endLng: flight.to[1]
+                    }));
+
+                console.log("Valid arcs:", arcs);
+
+                globe.arcsData(arcs);
+
+                if (arcs.length === 0) {
+                    console.warn("No valid arcs to display.");
+                }
+            })
+            .catch(error => {
+                console.error('Error loading JSON:', error);
+            });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            globe.rotation.y += 0.002;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
