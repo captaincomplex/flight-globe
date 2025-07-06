@@ -1,76 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Flight Globe Viewer</title>
-    <style>
-      body { margin: 0; overflow: hidden; }
-      canvas { display: block; }
-    </style>
-  </head>
-  <body>
-    <script type="module">
-      import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
-      import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
-      import ThreeGlobe from 'https://unpkg.com/three-globe@2.26.6/dist/three-globe.module.js';
+<head>
+  <meta charset="UTF-8" />
+  <title>Flight Globe Viewer (ES Modules)</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
+    import ThreeGlobe from 'https://unpkg.com/three-globe@2.26.6/dist/three-globe.module.js';
 
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.z = 300;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 300;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableZoom = true;
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableZoom = true;
 
-      const globe = new ThreeGlobe()
-        .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
+    const globe = new ThreeGlobe()
+      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
 
-      scene.add(globe);
+    scene.add(globe);
+    scene.add(new THREE.AmbientLight(0xbbbbbb));
 
-      scene.add(new THREE.AmbientLight(0xbbbbbb));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(0, 50, 50);
-      scene.add(dirLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    dirLight.position.set(0, 50, 50);
+    scene.add(dirLight);
 
-      fetch('flights.json')
-        .then(res => res.json())
-        .then(flights => {
-          const arcs = flights
-            .filter(f => f.from[0] !== f.to[0] || f.from[1] !== f.to[1])
-            .map(f => ({
-              startLat: f.from[0],
-              startLng: f.from[1],
-              endLat: f.to[0],
-              endLng: f.to[1]
-            }));
+    fetch('flights.json')
+      .then(res => res.json())
+      .then(flights => {
+        const arcs = flights
+          .filter(f => f.from[0] !== f.to[0] || f.from[1] !== f.to[1])
+          .map(f => ({
+            startLat: f.from[0],
+            startLng: f.from[1],
+            endLat: f.to[0],
+            endLng: f.to[1]
+          }));
 
-          globe
-            .arcsData(arcs)
-            .arcColor(() => '#FF0000')
-            .arcDashLength(0.4)
-            .arcDashGap(4)
-            .arcDashInitialGap(() => Math.random() * 5)
-            .arcDashAnimateTime(1000)
-            .arcAltitudeAutoScale(true);
-        });
-
-      function animate() {
-        requestAnimationFrame(animate);
-        globe.rotation.y += 0.002;
-        controls.update();
-        renderer.render(scene, camera);
-      }
-
-      animate();
-
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        globe
+          .arcsData(arcs)
+          .arcColor(() => '#FF0000')
+          .arcDashLength(0.4)
+          .arcDashGap(4)
+          .arcDashInitialGap(() => Math.random() * 5)
+          .arcDashAnimateTime(1000)
+          .arcAltitudeAutoScale(true);
       });
-    </script>
-  </body>
+
+    function animate() {
+      requestAnimationFrame(animate);
+      globe.rotation.y += 0.002;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
 </html>
