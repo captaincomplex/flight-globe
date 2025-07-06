@@ -12,7 +12,71 @@
 <body>
     <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
     <script src="https://unpkg.com/three-globe@2.26.6/dist/three-globe.min.js"></script>
-    <script src="https://unpkg.com/three/examples/js/controls/OrbitControls.js"></script>
+<script type="module">
+  import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
+  import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
+  import ThreeGlobe from 'https://unpkg.com/three-globe@2.26.6/dist/three-globe.module.js';
+
+  console.log("Script running");
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 300;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableZoom = true;
+
+  const globe = new ThreeGlobe()
+    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
+
+  scene.add(globe);
+
+  scene.add(new THREE.AmbientLight(0xbbbbbb));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight.position.set(0, 50, 50);
+  scene.add(dirLight);
+
+  fetch('flights.json')
+    .then(res => res.json())
+    .then(flights => {
+      const arcs = flights
+        .filter(f => f.from[0] !== f.to[0] || f.from[1] !== f.to[1])
+        .map(f => ({
+          startLat: f.from[0],
+          startLng: f.from[1],
+          endLat: f.to[0],
+          endLng: f.to[1]
+        }));
+      
+      globe
+        .arcsData(arcs)
+        .arcColor(() => '#FF0000')
+        .arcDashLength(0.4)
+        .arcDashGap(4)
+        .arcDashInitialGap(() => Math.random() * 5)
+        .arcDashAnimateTime(1000)
+        .arcAltitudeAutoScale(true);
+    });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    globe.rotation.y += 0.002;
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
 
     <script>
         // Scene setup
