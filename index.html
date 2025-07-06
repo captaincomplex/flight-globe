@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Flight Globe Viewer (Modules)</title>
+  <meta charset="UTF-8" />
+  <title>Flight Globe Viewer</title>
   <style>
     body { margin: 0; overflow: hidden; }
     canvas { display: block; }
@@ -12,7 +12,7 @@
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/OrbitControls.js';
-    import ThreeGlobe from 'https://unpkg.com/three-globe?module';
+    import ThreeGlobe from './three-globe.module.js';
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -25,12 +25,12 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableZoom = true;
 
-    const globe = new ThreeGlobe()
-      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
-
+    const globe = new ThreeGlobe().globeImageUrl(
+      'https://unpkg.com/three-globe/example/img/earth-dark.jpg'
+    );
     scene.add(globe);
-    scene.add(new THREE.AmbientLight(0xbbbbbb));
 
+    scene.add(new THREE.AmbientLight(0xbbbbbb));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
     dirLight.position.set(0, 50, 50);
     scene.add(dirLight);
@@ -44,9 +44,8 @@
             startLat: f.from[0],
             startLng: f.from[1],
             endLat: f.to[0],
-            endLng: f.to[1]
+            endLng: f.to[1],
           }));
-
         globe
           .arcsData(arcs)
           .arcColor(() => '#FF0000')
@@ -63,7 +62,6 @@
       controls.update();
       renderer.render(scene, camera);
     }
-
     animate();
 
     window.addEventListener('resize', () => {
