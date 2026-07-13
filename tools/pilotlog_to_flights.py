@@ -31,27 +31,66 @@ ARR_HEADERS = ["af_arr", "arr", "arrival", "to", "destination", "dest"]
 DEP_TIME_HEADERS = ["time_dep", "dep_time", "std", "atd", "out", "off_block", "block_off"]
 
 
+# Codes missing from OurAirports, mapped to codes it does know
+ALIASES = {
+    "QLA": "EGHL",  # Lasham Airfield (easyJet maintenance base)
+    "MJV": "LELC",  # Murcia-San Javier; IATA code retired when Corvera opened (2019)
+}
+
+PLACEHOLDERS = {"XXX", "XXXX", "ZZZ", "ZZZZ"}  # ICAO/IATA "no code assigned"
+CODE_RE = re.compile(r"^[A-Z0-9]{3,4}$")
+
+
 def load_airports():
-    """code -> (lat, lng); ICAO idents take priority over IATA/FAA codes."""
+    """code -> (lat, lng, name); ICAO idents take priority over IATA/FAA codes,
+    which take priority over keyword codes (where closed airports like Tegel
+    keep their retired TXL/EDDT identifiers)."""
     by_code = {}
     with open(AIRPORTS_CSV, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
+
+    def add(code, r):
+        code = code.strip().upper()
+        if code and code not in PLACEHOLDERS:
+            by_code[code] = (float(r["latitude_deg"]), float(r["longitude_deg"]), r["name"])
+
     # Lowest priority first so later (higher-priority) writes win
-    placeholders = {"XXX", "XXXX", "ZZZ", "ZZZZ"}  # ICAO/IATA "no code assigned"
+    for r in rows:
+        for kw in (r["keywords"] or "").split(","):
+            if CODE_RE.match(kw.strip().upper()):
+                add(kw, r)
     for field in ("local_code", "gps_code", "iata_code", "icao_code", "ident"):
         for r in rows:
-            code = (r[field] or "").strip().upper()
-            if code and code not in placeholders:
-                by_code[code] = (float(r["latitude_deg"]), float(r["longitude_deg"]), r["name"])
+            add(r[field] or "", r)
     return by_code
 
 
 def read_rows(path):
-    if path.suffix.lower() in (".xls", ".xlsx"):
+    if path.suffix.lower() == ".xls":  # legacy Excel 97-2003 (PILOTLOG's Excel export)
+        try:
+            import xlrd
+        except ImportError:
+            sys.exit("Reading .xls needs xlrd (pip3 install --user xlrd) — "
+                     "or export as CSV from PILOTLOG instead.")
+        book = xlrd.open_workbook(path)
+        sheet = book.sheet_by_index(0)
+
+        def cell(c):
+            if c.ctype == xlrd.XL_CELL_DATE:
+                y, mo, d, h, mnt, _ = xlrd.xldate_as_tuple(c.value, book.datemode)
+                return f"{y:04d}-{mo:02d}-{d:02d} {h:02d}:{mnt:02d}" if (y, mo, d) != (0, 0, 0) \
+                    else f"{h:02d}:{mnt:02d}"
+            if c.ctype == xlrd.XL_CELL_NUMBER and c.value == int(c.value):
+                return str(int(c.value))
+            return str(c.value).strip()
+        headers = [cell(c) for c in sheet.row(0)]
+        return [dict(zip(headers, (cell(c) for c in sheet.row(r))))
+                for r in range(1, sheet.nrows)]
+    if path.suffix.lower() == ".xlsx":
         try:
             import openpyxl
         except ImportError:
-            sys.exit("Reading Excel needs openpyxl (pip3 install openpyxl) — "
+            sys.exit("Reading .xlsx needs openpyxl (pip3 install --user openpyxl) — "
                      "or export as CSV from PILOTLOG instead.")
         ws = openpyxl.load_workbook(path, read_only=True).active
         it = ws.iter_rows(values_only=True)
@@ -133,6 +172,8 @@ def main():
     for r in rows:
         dep = (r.get(dep_col) or "").strip().upper()
         arr = (r.get(arr_col) or "").strip().upper()
+        dep = ALIASES.get(dep, dep)
+        arr = ALIASES.get(arr, arr)
         ymd = parse_date(r.get(date_col) or "", mdy=mdy)
         if not dep or not arr or not ymd:
             skipped += 1

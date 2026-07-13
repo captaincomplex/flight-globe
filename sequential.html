@@ -36,7 +36,8 @@
         .arcStroke(0.3)
         .arcDashLength(1)
         .arcDashGap(Math.max(arcs.length - 1, 0))
-        .arcDashAnimateTime(1500)
+        // per-flight lit time: brisk for big logbooks, leisurely for small ones
+        .arcDashAnimateTime(Math.max(100, Math.min(1500, Math.round(90000 / arcs.length))))
         .arcDashInitialGap('initialGap')
         .arcsTransitionDuration(0)
         .enablePointerInteraction(false);
