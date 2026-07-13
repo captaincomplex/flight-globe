@@ -3,125 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flight Globe Viewer</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    canvas { display: block; }
-    #status {
-      position: fixed; top: 10px; left: 10px;
-      color: #ccc; font: 13px/1.4 system-ui, sans-serif;
-      background: rgba(0, 0, 0, 0.5); padding: 6px 10px; border-radius: 6px;
-      pointer-events: none;
-    }
-  </style>
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://esm.sh/three@0.169.0",
-      "three/": "https://esm.sh/three@0.169.0/",
-      "three-globe": "https://esm.sh/three-globe@2.31.1?external=three"
-    }
-  }
-  </script>
+  <title>Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="status">Loading flights…</div>
-
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-    import ThreeGlobe from 'three-globe';
-
-    const status = document.getElementById('status');
-    window.addEventListener('error', e => { status.textContent = `Error: ${e.message}`; });
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.z = 320;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    document.body.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.minDistance = 120;
-    controls.maxDistance = 800;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.5;
-
-    const globe = new ThreeGlobe()
-      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-      .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png');
-    scene.add(globe);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    dirLight.position.set(1, 1, 1);
-    scene.add(dirLight);
-
-    fetch('flights.json')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status} loading flights.json`);
-        return res.json();
-      })
-      .then(flights => {
-        const arcs = flights
-          .filter(f => f.from[0] !== f.to[0] || f.from[1] !== f.to[1])
-          .map(f => ({
-            startLat: f.from[0],
-            startLng: f.from[1],
-            endLat: f.to[0],
-            endLng: f.to[1],
-            time: f.time,
-          }));
-
-        const endpoints = flights.flatMap(f => [
-          { lat: f.from[0], lng: f.from[1] },
-          { lat: f.to[0], lng: f.to[1] },
-        ]);
-
-        globe
-          .arcsData(arcs)
-          .arcColor(() => '#ff4444')
-          .arcStroke(0.5)
-          .arcDashLength(0.4)
-          .arcDashGap(0.6)
-          .arcDashInitialGap(() => Math.random())
-          .arcDashAnimateTime(1500)
-          .arcAltitudeAutoScale(0.4)
-          .pointsData(endpoints)
-          .pointColor(() => '#ffcc00')
-          .pointAltitude(0.005)
-          .pointRadius(0.15);
-
-        status.textContent = `${arcs.length} flight${arcs.length === 1 ? '' : 's'} — drag to rotate, scroll to zoom`;
-
-        // Center the view on the first flight's origin
-        if (arcs.length) {
-          const { x, y, z } = globe.getCoords(arcs[0].startLat, arcs[0].startLng, 0);
-          camera.position.copy(new THREE.Vector3(x, y, z).normalize().multiplyScalar(320));
-          controls.update();
-        }
-      })
-      .catch(err => {
-        status.textContent = `Could not load flights.json (${err.message}). ` +
-          'If you opened this file directly, serve it instead: python3 -m http.server';
-      });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+  <div class="home">
+    <h1>Flight Globes</h1>
+    <p class="sub">
+      Interactive 3D globes of the flights in <code>flights.json</code>, after
+      <a href="https://jameshard.ing/pilot/globes/" style="color:#60a5fa">James Harding's flight globes</a>.
+    </p>
+    <ul>
+      <li><a href="all.html"><b>Every Flight</b><span>All routes at once, with animated traffic along each arc.</span></a></li>
+      <li><a href="sequential.html"><b>Sequential</b><span>Flights light up one at a time, in date order.</span></a></li>
+      <li><a href="countries.html"><b>Countries</b><span>Countries visited, raised by how often they were flown to.</span></a></li>
+      <li><a href="destinations.html"><b>Destinations Heatmap</b><span>Bars (or a heat gradient) at each destination, sized by visit count.</span></a></li>
+      <li><a href="timeline.html"><b>Timeline</b><span>Replay the flights in order with play/pause and a scrubber.</span></a></li>
+    </ul>
+  </div>
 </body>
 </html>

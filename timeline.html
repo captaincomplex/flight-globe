@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Timeline — Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
+  <script src="common.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+  <div class="infocard" id="infocard" hidden>
+    <div class="date" id="ic-date"></div>
+    <div class="route" id="ic-route"></div>
+    <div class="stats">
+      <div><div class="k">Distance</div><div class="v" id="ic-dist"></div></div>
+      <div><div class="k">Est. Time</div><div class="v" id="ic-time"></div></div>
+    </div>
+  </div>
+  <div class="transport">
+    <button id="playpause" aria-label="Pause">&#10074;&#10074;</button>
+    <input type="range" id="scrubber" min="0" max="0" value="0" />
+    <div class="counter" id="counter">0 / 0</div>
+  </div>
+  <script>
+  (async () => {
+    try {
+      const flights = await FG.loadFlights();
+      const estHours = f => Math.max(f.distanceKm / 750, 0.15); // rough cruise-speed estimate
+
+      const speeds = {
+        realtime: { label: 'Proportional', getDelay: f => Math.max(1000, estHours(f) * 1000) },
+        'realtime-fast': { label: 'Proportional Fast (2x)', getDelay: f => Math.max(1000, estHours(f) * 500) },
+        relaxed: { label: 'Fixed', getDelay: () => 2000 },
+        normal: { label: 'Fixed Fast (2x)', getDelay: () => 1000 },
+      };
+      let speed = 'relaxed';
+      let current = 0;
+      let playing = true;
+      let timer = null;
+
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const arcs = flights.map((f, i) => ({
+        ...f,
+        flightIndex: i,
+        altitude: 0.05 + Math.min(f.distanceKm / 4000, 1) * 0.1,
+        dashLength: 500 / Math.max(f.distanceKm, 1),
+      }));
+
+      const globe = Globe()(document.getElementById('globe'))
+        .globeImageUrl(dark ? 'assets/earth-night-hd.jpg' : 'assets/earth-day-hd.jpg')
+        .backgroundImageUrl('assets/night-sky.png')
+        .showGraticules(true)
+        .arcsData(arcs)
+        .arcsTransitionDuration(0)
+        .arcColor(a => a.flightIndex === current ? ['#ef4444', '#efcc44'] : 'rgba(0,0,0,0)')
+        .arcStroke(a => a.flightIndex === current ? 0.5 : 0)
+        .arcAltitude('altitude')
+        .arcDashLength(a => a.flightIndex === current ? a.dashLength : 0)
+        .arcDashGap(a => a.flightIndex === current ? 0.05 : 0)
+        .arcDashAnimateTime(a => a.flightIndex === current ? speeds[speed].getDelay(a) : 0)
+        .pointLat('lat').pointLng('lng').pointColor('colour').pointLabel('label')
+        .pointAltitude(0.01).pointRadius(0.5).pointsMerge(false);
+
+      FG.fitToWindow(globe);
+
+      // Fly the camera to the great-circle midpoint of the current flight
+      // (ported from James Harding's timeline globe)
+      function focus(f, ms) {
+        const d2r = Math.PI / 180;
+        const lat1 = f.startLat * d2r, lng1 = f.startLng * d2r;
+        const lat2 = f.endLat * d2r, lng2 = f.endLng * d2r;
+        const bx = Math.cos(lat2) * Math.cos(lng2 - lng1);
+        const by = Math.cos(lat2) * Math.sin(lng2 - lng1);
+        const midLat = Math.atan2(Math.sin(lat1) + Math.sin(lat2),
+          Math.sqrt((Math.cos(lat1) + bx) ** 2 + by * by));
+        const midLng = lng1 + Math.atan2(by, Math.cos(lat1) + bx);
+        const span = Math.hypot(f.endLng - f.startLng, f.endLat - f.startLat);
+        const altitude = Math.max(1.3, Math.min(span / 40, 2.5));
+        globe.pointOfView({ lat: midLat / d2r, lng: midLng / d2r, altitude }, ms);
+      }
+
+      const infocard = document.getElementById('infocard');
+      function render() {
+        const f = flights[current];
+        globe
+          .arcsData(arcs)
+          .pointsData([
+            { lat: f.startLat, lng: f.startLng, colour: '#ef4444', label: 'Departure' },
+            { lat: f.endLat, lng: f.endLng, colour: '#efcc44', label: 'Arrival' },
+          ]);
+        focus(f, speeds[speed].getDelay(f));
+        infocard.hidden = false;
+        document.getElementById('ic-date').textContent =
+          f.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('ic-route').innerHTML =
+          `${f.startLat.toFixed(2)}, ${f.startLng.toFixed(2)} &#10132; ${f.endLat.toFixed(2)}, ${f.endLng.toFixed(2)}`;
+        document.getElementById('ic-dist').textContent = `${Math.round(f.distanceKm)} km`;
+        document.getElementById('ic-time').textContent = `${estHours(f).toFixed(1)} hrs`;
+        document.getElementById('scrubber').value = current;
+        document.getElementById('counter').textContent = `${current + 1} / ${flights.length}`;
+      }
+
+      function schedule() {
+        clearTimeout(timer);
+        if (playing && flights.length > 0) {
+          timer = setTimeout(() => { current = (current + 1) % flights.length; render(); schedule(); },
+            speeds[speed].getDelay(flights[current]));
+        }
+      }
+
+      const playBtn = document.getElementById('playpause');
+      playBtn.addEventListener('click', () => {
+        playing = !playing;
+        playBtn.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+        schedule();
+      });
+      const scrubber = document.getElementById('scrubber');
+      scrubber.max = Math.max(0, flights.length - 1);
+      scrubber.addEventListener('input', e => { current = +e.target.value; render(); schedule(); });
+
+      const panel = FG.panel();
+      const sel = document.createElement('select');
+      for (const [k, { label }] of Object.entries(speeds)) {
+        const o = document.createElement('option');
+        o.value = k; o.textContent = label;
+        if (k === speed) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => { speed = sel.value; schedule(); });
+      panel.appendChild(sel);
+
+      render();
+      schedule();
+    } catch (err) { FG.showError(err); }
+  })();
+  </script>
+</body>
+</html>

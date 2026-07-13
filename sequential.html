@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sequential — Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
+  <script src="common.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+  <script>
+  (async () => {
+    try {
+      const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
+
+      // James Harding's sequential trick: every arc is a single dash of length 1
+      // with a gap of (N - 1) arc-lengths, staggered by index — so exactly one
+      // flight is lit at any moment, and they fire in date order.
+      const arcs = flights.map((f, i) => ({
+        ...f,
+        colour: ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)'],
+        initialGap: i,
+      }));
+
+      const globe = Globe()(document.getElementById('globe'))
+        .showGraticules(true)
+        .hexPolygonsData(countries.features)
+        .hexPolygonResolution(3)
+        .hexPolygonMargin(0.1)
+        .hexPolygonColor(() => 'rgba(255, 255, 255, 0.1)')
+        .arcsData(arcs)
+        .arcColor('colour')
+        .arcAltitudeAutoScale(0.5)
+        .arcStroke(0.3)
+        .arcDashLength(1)
+        .arcDashGap(Math.max(arcs.length - 1, 0))
+        .arcDashAnimateTime(1500)
+        .arcDashInitialGap('initialGap')
+        .arcsTransitionDuration(0)
+        .enablePointerInteraction(false);
+
+      FG.fitToWindow(globe);
+      globe.pointOfView({ ...FG.centroid(flights), altitude: 1 });
+
+      const panel = FG.panel();
+      FG.toggleButton(panel, 'Rotation', false, on => {
+        globe.controls().autoRotate = on;
+        globe.controls().autoRotateSpeed = 0.2;
+      });
+    } catch (err) { FG.showError(err); }
+  })();
+  </script>
+</body>
+</html>

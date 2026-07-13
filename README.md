@@ -1,24 +1,35 @@
-# Flight Globe
+# Flight Globes
 
-An interactive 3D globe that draws animated arcs for a set of flights, inspired by
-James Harding's flight-globe. Built with [three.js](https://threejs.org/) and
-[three-globe](https://github.com/vasturiano/three-globe), loaded from CDN — no build
-step required.
+Interactive 3D globes that visualise the flights in `flights.json`, closely following
+[James Harding's flight globes](https://jameshard.ing/pilot/globes/). Built with
+[globe.gl](https://github.com/vasturiano/globe.gl) loaded from CDN — no build step.
+
+## The five globes
+
+| Page | What it shows |
+|---|---|
+| `all.html` | Every route at once, animated traffic along each arc |
+| `sequential.html` | Flights light up one at a time in date order |
+| `countries.html` | Countries visited, extruded by visit count |
+| `destinations.html` | Bars or a heat gradient at each destination |
+| `timeline.html` | Replay with play/pause, scrubber, and per-flight info card |
+
+`index.html` is the landing page linking to all five.
 
 ## Viewing
 
-The page fetches `flights.json`, so it must be served over HTTP (opening `index.html`
-directly from the filesystem won't work). From the repo directory:
+The pages fetch `flights.json`, so they must be served over HTTP (opening the files
+directly won't work). From the repo directory:
 
 ```sh
 python3 -m http.server 8000
 ```
 
-then open <http://localhost:8000>. It also works as-is on GitHub Pages.
+then open <http://localhost:8000>. Works as-is on GitHub Pages.
 
 ## Flight data
 
-Edit `flights.json` to add your own flights. Each entry is:
+Edit `flights.json` to add flights. Each entry is:
 
 ```json
 {
@@ -28,9 +39,18 @@ Edit `flights.json` to add your own flights. Each entry is:
 }
 ```
 
-`from` and `to` are `[latitude, longitude]` pairs in decimal degrees.
+`time` is `DD/MM/YYYY` followed by `T HH:MM Z`; `from`/`to` are `[latitude, longitude]`
+in decimal degrees.
 
-## Controls
+## Assets & credits
 
-- Drag to rotate, scroll to zoom (the globe also auto-rotates slowly)
-- Red dashed arcs are flights; yellow dots mark departure and arrival points
+- Globe rendering: [globe.gl](https://github.com/vasturiano/globe.gl) (MIT) by Vasco Asturiano
+- `assets/earth-night-hd.jpg` (8192×4096), `assets/earth-day-hd.jpg` and
+  `assets/night-sky.png` (4096×2048): NASA-derived Earth imagery (public domain),
+  the same files James Harding serves on his globes
+- `data/countries.geojson`: Natural Earth 1:110m admin-0 countries (public domain),
+  as used by globe.gl's examples — provides both the hex-polygon landmasses and the
+  country shapes
+- Design and techniques: [James Harding](https://jameshard.ing) — the hex-polygon
+  landmasses, the single-dash sequential animation trick, colour ramps, and camera
+  behaviour are ported from his globes

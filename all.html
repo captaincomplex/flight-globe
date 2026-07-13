@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Every Flight — Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
+  <script src="common.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+  <script>
+  (async () => {
+    try {
+      const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
+
+      // Group flights into unique routes
+      const routes = new Map();
+      for (const f of flights) {
+        const key = `${f.startLat},${f.startLng}>${f.endLat},${f.endLng}`;
+        if (!routes.has(key)) routes.set(key, { ...f, count: 0 });
+        routes.get(key).count++;
+      }
+
+      const fmt = d => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      let animate = true;
+      const arcData = () => [...routes.values()].map(r => ({
+        ...r,
+        colour: ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)'],
+        stroke: animate ? 0.5 : 0.3,
+        dashLength: animate ? 0.05 : 1,
+        dashGap: animate ? 0.95 : 0,
+        dashAnimateTime: animate ? Math.max(1200, r.distanceKm * 10) : 0,
+        dashInitialGap: Math.random(),
+        label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
+                  <b>${r.startLat.toFixed(2)}, ${r.startLng.toFixed(2)} &rarr; ${r.endLat.toFixed(2)}, ${r.endLng.toFixed(2)}</b><br/>
+                  Flights: <b>${r.count}</b><br/>
+                  Distance: <b>${Math.round(r.distanceKm)} km</b>
+                </div>`,
+      }));
+
+      const endpoints = [...routes.values()].map(r => ({ lat: r.endLat, lng: r.endLng }));
+
+      const globe = Globe()(document.getElementById('globe'))
+        .showGraticules(true)
+        .hexPolygonsData(countries.features)
+        .hexPolygonResolution(3)
+        .hexPolygonMargin(0.1)
+        .hexPolygonColor(() => 'rgba(255, 255, 255, 0.1)')
+        .arcsData(arcData())
+        .arcColor('colour')
+        .arcAltitudeAutoScale(0.5)
+        .arcStroke('stroke')
+        .arcDashLength('dashLength')
+        .arcDashGap('dashGap')
+        .arcDashAnimateTime('dashAnimateTime')
+        .arcDashInitialGap('dashInitialGap')
+        .arcsTransitionDuration(0)
+        .arcLabel('label')
+        .pointsData(endpoints)
+        .pointColor(() => '#ffffff')
+        .pointAltitude(0.002)
+        .pointRadius(0.12);
+
+      FG.fitToWindow(globe);
+      globe.pointOfView({ ...FG.centroid(flights), altitude: 1 });
+
+      const panel = FG.panel();
+      FG.toggleButton(panel, 'Animation', true, on => { animate = on; globe.arcsData(arcData()); });
+      FG.toggleButton(panel, 'Rotation', false, on => {
+        globe.controls().autoRotate = on;
+        globe.controls().autoRotateSpeed = 0.2;
+      });
+    } catch (err) { FG.showError(err); }
+  })();
+  </script>
+</body>
+</html>

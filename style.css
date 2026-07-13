@@ -1,0 +1,59 @@
+html, body { margin: 0; height: 100%; background: #000; color: #e5e7eb; font: 14px/1.5 system-ui, sans-serif; }
+#globe { position: fixed; inset: 0; }
+
+.panel {
+  position: fixed; top: 0; left: 0; z-index: 10;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px; background: rgba(17, 24, 39, 0.5);
+  border-bottom-right-radius: 12px;
+}
+.panel a, .panel button, .panel select {
+  background: #1f2937; color: #e5e7eb; border: 0;
+  padding: 8px 16px; border-radius: 6px; text-align: left;
+  cursor: pointer; text-decoration: none; font: inherit;
+}
+.panel a:hover, .panel button:hover { background: #374151; }
+.panel.error { background: rgba(127, 29, 29, 0.9); top: auto; bottom: 0; border-radius: 0 12px 0 0; }
+
+.legend { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 0 4px; }
+.legend .ramp {
+  flex: 1; height: 10px; border-radius: 5px;
+  background: linear-gradient(to right, rgba(30,100,255,.85), rgba(30,255,255,.85), rgba(255,255,0,.85), rgba(255,0,0,.85));
+}
+
+/* Timeline page */
+.infocard {
+  position: fixed; right: 24px; bottom: 72px; z-index: 10;
+  background: rgba(17, 24, 39, 0.85); border: 1px solid #374151;
+  padding: 14px 18px; border-radius: 12px; max-width: 320px; pointer-events: none;
+}
+.infocard .date { font-size: 13px; color: #9ca3af; }
+.infocard .route { font-size: 19px; font-weight: 700; margin: 4px 0 8px; }
+.infocard .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; }
+.infocard .stats .k { color: #60a5fa; }
+.infocard .stats .v { font-family: ui-monospace, monospace; }
+
+.transport {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(17, 24, 39, 0.85); border-top: 1px solid #374151; padding: 8px 14px;
+}
+.transport button {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #1f2937; color: #e5e7eb; font-size: 16px;
+}
+.transport input[type=range] { flex: 1; accent-color: #60a5fa; }
+.transport .counter { font-family: ui-monospace, monospace; min-width: 64px; text-align: right; }
+
+/* Landing page */
+.home { max-width: 640px; margin: 8vh auto; padding: 0 20px; }
+.home h1 { font-size: 28px; }
+.home p.sub { color: #9ca3af; }
+.home ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.home li a {
+  display: block; background: #111827; border: 1px solid #374151;
+  border-radius: 12px; padding: 14px 18px; color: inherit; text-decoration: none;
+}
+.home li a:hover { border-color: #60a5fa; }
+.home li b { font-size: 16px; }
+.home li span { display: block; color: #9ca3af; font-size: 13px; margin-top: 2px; }

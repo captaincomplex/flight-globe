@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Countries — Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
+  <script src="common.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+  <script>
+  (async () => {
+    try {
+      const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
+
+      // Count flights touching each country (by where their endpoints land)
+      const visits = new Map();
+      for (const f of flights) {
+        const touched = new Set();
+        for (const [lat, lng] of [[f.startLat, f.startLng], [f.endLat, f.endLng]]) {
+          const c = FG.countryOf(countries, lat, lng);
+          if (c) touched.add(c);
+        }
+        for (const c of touched) visits.set(c, (visits.get(c) || 0) + 1);
+      }
+
+      const polygons = [...visits.entries()].map(([feature, n]) => ({
+        ...feature,
+        altitude: (Math.log(n) + 0.1) / 15,
+        capColour: `rgba(${Math.round(Math.log10(n) / 3 * 255)}, 0, ${255 - Math.round(Math.log10(n) / 3 * 255)}, 0.8)`,
+        label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
+                  <b>${feature.properties.NAME_CIAWF || feature.properties.ADMIN}</b><br/>
+                  Flights: <b>${n}</b>
+                </div>`,
+      }));
+
+      const globe = Globe()(document.getElementById('globe'))
+        .globeImageUrl('assets/earth-night-hd.jpg')
+        .backgroundImageUrl('assets/night-sky.png')
+        .polygonsData(polygons)
+        .polygonAltitude('altitude')
+        .polygonCapColor('capColour')
+        .polygonSideColor(() => 'rgba(255, 255, 255, 0.05)')
+        .polygonLabel('label');
+
+      FG.fitToWindow(globe);
+      globe.pointOfView({ ...FG.centroid(flights), altitude: 2 });
+
+      const panel = FG.panel();
+      globe.controls().autoRotate = true;
+      globe.controls().autoRotateSpeed = 0.2;
+      FG.toggleButton(panel, 'Rotation', true, on => { globe.controls().autoRotate = on; });
+    } catch (err) { FG.showError(err); }
+  })();
+  </script>
+</body>
+</html>

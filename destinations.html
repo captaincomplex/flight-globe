@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Destinations Heatmap — Flight Globes</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
+  <script src="common.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+  <script>
+  (async () => {
+    try {
+      const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
+
+      // Visit count per unique destination
+      const dests = new Map();
+      for (const f of flights) {
+        const key = `${f.endLat},${f.endLng}`;
+        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, n: 0 });
+        dests.get(key).n++;
+      }
+      const points = [...dests.values()];
+      const max = Math.max(...points.map(p => p.n), 1);
+
+      // James Harding's low-to-high colour ramp: blue -> cyan -> yellow -> red
+      function rampColour(v) {
+        if (v <= 0) return 'rgba(100, 100, 100, 0.3)';
+        const t = Math.log(max + 1) > 0 ? Math.log(v + 1) / Math.log(max + 1) : 0;
+        let r, g, b;
+        if (t < 0.33) { const e = t / 0.33; r = 30; g = Math.round(100 + 155 * e); b = Math.round(255 * (1 - e)); }
+        else if (t < 0.66) { const e = (t - 0.33) / 0.33; r = Math.round(255 * e); g = 255; b = 0; }
+        else { const e = (t - 0.66) / 0.34; r = 255; g = Math.round(255 * (1 - e)); b = 0; }
+        return `rgba(${r}, ${g}, ${b}, 0.85)`;
+      }
+
+      const bars = points.map(p => {
+        const t = max > 1 ? Math.log(p.n + 1) / Math.log(max + 1) : 1;
+        return {
+          ...p,
+          colour: rampColour(p.n),
+          altitude: t * 0.15,
+          radius: Math.max(0.2, t * 1.5 + 0.2),
+          label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
+                    <b>${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}</b><br/>
+                    Flights: <b>${p.n}</b>
+                  </div>`,
+        };
+      });
+
+      const globe = Globe()(document.getElementById('globe'))
+        .globeImageUrl('assets/earth-night-hd.jpg')
+        .backgroundImageUrl('assets/night-sky.png')
+        .showGraticules(true)
+        .hexPolygonsData(countries.features)
+        .hexPolygonResolution(3)
+        .hexPolygonMargin(0.1)
+        .hexPolygonColor(() => 'rgba(255, 255, 255, 0.1)')
+        .pointColor('colour')
+        .pointLabel('label')
+        .pointAltitude('altitude')
+        .pointRadius('radius')
+        .heatmapPointLat('lat')
+        .heatmapPointLng('lng')
+        .heatmapPointWeight('n')
+        .heatmapBandwidth(1)
+        .heatmapColorSaturation(2.8)
+        .heatmapTopAltitude(0.15);
+
+      let mode = 'bars';
+      const apply = () => {
+        globe.pointsData(mode === 'bars' ? bars : []);
+        globe.heatmapsData(mode === 'gradient' ? [{ points }] : []);
+        globe.heatmapPoints('points');
+      };
+      apply();
+
+      FG.fitToWindow(globe);
+      globe.pointOfView({ ...FG.centroid(flights), altitude: 1.5 });
+
+      const panel = FG.panel();
+      FG.toggleButton(panel, 'Rotation', false, on => {
+        globe.controls().autoRotate = on;
+        globe.controls().autoRotateSpeed = 0.2;
+      });
+      const modeBtn = document.createElement('button');
+      const renderMode = () => { modeBtn.innerHTML = `Mode <b>${mode === 'bars' ? 'Bars' : 'Gradient'}</b>`; };
+      modeBtn.addEventListener('click', () => { mode = mode === 'bars' ? 'gradient' : 'bars'; renderMode(); apply(); });
+      renderMode();
+      panel.appendChild(modeBtn);
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+      legend.innerHTML = '<span>Low</span><div class="ramp"></div><span>High</span>';
+      panel.appendChild(legend);
+    } catch (err) { FG.showError(err); }
+  })();
+  </script>
+</body>
+</html>
