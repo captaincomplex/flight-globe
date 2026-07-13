@@ -34,7 +34,7 @@
         dashAnimateTime: animate ? Math.max(1200, r.distanceKm * 10) : 0,
         dashInitialGap: Math.random(),
         label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
-                  <b>${r.startLat.toFixed(2)}, ${r.startLng.toFixed(2)} &rarr; ${r.endLat.toFixed(2)}, ${r.endLng.toFixed(2)}</b><br/>
+                  <b>${FG.placeName(r, 'from')} &rarr; ${FG.placeName(r, 'to')}</b><br/>
                   Flights: <b>${r.count}</b><br/>
                   Distance: <b>${Math.round(r.distanceKm)} km</b>
                 </div>`,

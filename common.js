@@ -23,6 +23,8 @@ const FG = (() => {
         date: parseTime(f.time),
         startLat: f.from[0], startLng: f.from[1],
         endLat: f.to[0], endLng: f.to[1],
+        fromCode: f.from_code || null,
+        toCode: f.to_code || null,
         distanceKm: haversineKm(f.from[0], f.from[1], f.to[0], f.to[1]),
       }))
       .sort((a, b) => a.date - b.date);
@@ -99,7 +101,14 @@ const FG = (() => {
     document.body.appendChild(el);
   }
 
-  return { loadFlights, loadCountries, countryOf, centroid, fitToWindow, panel, toggleButton, showError, haversineKm };
+  // "EGLL" if the converter provided airport codes, otherwise "51.47, -0.45"
+  function placeName(f, which) {
+    return which === 'from'
+      ? (f.fromCode || `${f.startLat.toFixed(2)}, ${f.startLng.toFixed(2)}`)
+      : (f.toCode || `${f.endLat.toFixed(2)}, ${f.endLng.toFixed(2)}`);
+  }
+
+  return { loadFlights, loadCountries, countryOf, centroid, fitToWindow, panel, toggleButton, showError, haversineKm, placeName };
 })();
 
 window.addEventListener('error', e => FG.showError(e));

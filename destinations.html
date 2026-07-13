@@ -19,7 +19,7 @@
       const dests = new Map();
       for (const f of flights) {
         const key = `${f.endLat},${f.endLng}`;
-        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, n: 0 });
+        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, code: f.toCode, n: 0 });
         dests.get(key).n++;
       }
       const points = [...dests.values()];
@@ -44,7 +44,7 @@
           altitude: t * 0.15,
           radius: Math.max(0.2, t * 1.5 + 0.2),
           label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
-                    <b>${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}</b><br/>
+                    <b>${p.code || `${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}`}</b><br/>
                     Flights: <b>${p.n}</b>
                   </div>`,
         };

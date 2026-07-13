@@ -35,12 +35,32 @@ Edit `flights.json` to add flights. Each entry is:
 {
   "time": "16/06/2011T12:35Z",
   "from": [52.0407981873, -1.09555995464],
-  "to": [52.6758003235, 1.28278005123]
+  "to": [52.6758003235, 1.28278005123],
+  "from_code": "EGKK",
+  "to_code": "LEPA"
 }
 ```
 
 `time` is `DD/MM/YYYY` followed by `T HH:MM Z`; `from`/`to` are `[latitude, longitude]`
-in decimal degrees.
+in decimal degrees. `from_code`/`to_code` are optional airport codes — when present,
+the globes show them in tooltips and the timeline info card.
+
+### Importing from CrewLounge PILOTLOG
+
+Export your logbook: in the desktop app open the **Query** page, leave the search
+fields empty, click **Search**, then the **CSV** (or Excel) button — or on
+[my.crewlounge.center](https://my.crewlounge.center/) go to **Apps → PilotLog →
+Export Database**. Then run:
+
+```sh
+python3 tools/pilotlog_to_flights.py ~/Downloads/YourExport.csv
+```
+
+It matches PILOTLOG's column names (`PILOTLOG_DATE`, `AF_DEP`, `AF_ARR`, `TIME_DEP`),
+resolves ICAO/IATA/FAA airport codes to coordinates using the bundled
+[OurAirports](https://ourairports.com/data/) database (`tools/airports.csv`, public
+domain), and rewrites `flights.json` sorted by date. Generic column names from other
+logbook apps (date/from/to etc.) work too; pass `--mdy` if your dates are month-first.
 
 ## Assets & credits
 

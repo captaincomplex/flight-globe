@@ -87,15 +87,15 @@
         globe
           .arcsData(arcs)
           .pointsData([
-            { lat: f.startLat, lng: f.startLng, colour: '#ef4444', label: 'Departure' },
-            { lat: f.endLat, lng: f.endLng, colour: '#efcc44', label: 'Arrival' },
+            { lat: f.startLat, lng: f.startLng, colour: '#ef4444', label: FG.placeName(f, 'from') },
+            { lat: f.endLat, lng: f.endLng, colour: '#efcc44', label: FG.placeName(f, 'to') },
           ]);
         focus(f, speeds[speed].getDelay(f));
         infocard.hidden = false;
         document.getElementById('ic-date').textContent =
           f.date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-        document.getElementById('ic-route').innerHTML =
-          `${f.startLat.toFixed(2)}, ${f.startLng.toFixed(2)} &#10132; ${f.endLat.toFixed(2)}, ${f.endLng.toFixed(2)}`;
+        document.getElementById('ic-route').textContent =
+          `${FG.placeName(f, 'from')} ➜ ${FG.placeName(f, 'to')}`;
         document.getElementById('ic-dist').textContent = `${Math.round(f.distanceKm)} km`;
         document.getElementById('ic-time').textContent = `${estHours(f).toFixed(1)} hrs`;
         document.getElementById('scrubber').value = current;
