@@ -63,9 +63,16 @@
               ...r, heightScale, stroke: 0.05, colour: dimmed ? DIM : baseColour,
               dashLength: 1, dashGap: 0, animateTime: 0, initialGap: 0, label,
             });
+            // James's dash geometry (5% dash on a 0.5-degree tube) reads as a
+            // slender streak on long-haul arcs but a square brick on short
+            // sectors, so thin the tube and stretch the dash as arcs shorten -
+            // converging on his exact values for long routes.
             out.push({
-              ...r, heightScale, stroke: 0.5, colour: dimmed ? DIM : trafficColour,
-              dashLength: 0.05, dashGap: 0.95, animateTime: avgHours * 2000,
+              ...r, heightScale,
+              stroke: Math.min(0.5, Math.max(0.2, r.distanceKm / 4000)),
+              colour: dimmed ? DIM : trafficColour,
+              dashLength: Math.min(0.6, Math.max(0.05, 250 / r.distanceKm)),
+              dashGap: 0.95, animateTime: avgHours * 2000,
               initialGap: Math.random(), label,
             });
           } else {
