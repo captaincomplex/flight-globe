@@ -6,7 +6,7 @@
   <title>Timeline — Flight Globes</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
-  <script src="common.js"></script>
+  <script src="common.js?v=2"></script>
 </head>
 <body>
   <div id="globe"></div>
@@ -15,7 +15,7 @@
     <div class="route" id="ic-route"></div>
     <div class="stats">
       <div><div class="k">Distance</div><div class="v" id="ic-dist"></div></div>
-      <div><div class="k">Est. Time</div><div class="v" id="ic-time"></div></div>
+      <div><div class="k">Time</div><div class="v" id="ic-time"></div></div>
     </div>
   </div>
   <div class="transport">
@@ -27,7 +27,7 @@
   (async () => {
     try {
       const flights = await FG.loadFlights();
-      const estHours = f => Math.max(f.distanceKm / 750, 0.15); // rough cruise-speed estimate
+      const estHours = FG.flightHours; // real block time, estimated only if absent
 
       const speeds = {
         realtime: { label: 'Proportional', getDelay: f => Math.max(1000, estHours(f) * 1000) },

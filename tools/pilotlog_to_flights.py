@@ -30,6 +30,7 @@ DEP_HEADERS = ["af_dep", "dep", "departure", "from", "origin"]
 ARR_HEADERS = ["af_arr", "arr", "arrival", "to", "destination", "dest"]
 DEP_TIME_HEADERS = ["time_dep", "dep_time", "std", "atd", "out", "off_block", "block_off"]
 SIM_HEADERS = ["ac_issim", "is_sim", "issim", "simulator", "sim"]
+TOTAL_HEADERS = ["time_total", "total_time", "block_time", "block", "duration"]
 TRUTHY = {"true", "1", "yes", "y", "x"}
 
 
@@ -162,6 +163,22 @@ def parse_time(s):
     return 12, 0  # placeholder when the export has no departure time
 
 
+def parse_total(s):
+    """Block time -> decimal hours. PILOTLOG accepts h:mm (3:30), decimal
+    hours (3.5 or 3,5), or plain minutes (210); its own export uses minutes."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d{1,3}):(\d{2})$", s)
+    if m:
+        return round(int(m.group(1)) + int(m.group(2)) / 60, 2)
+    try:
+        v = float(s.replace(",", "."))
+    except ValueError:
+        return None
+    return round(v, 2) if "." in s or "," in s else round(v / 60, 2)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     mdy = "--mdy" in sys.argv
@@ -180,6 +197,7 @@ def main():
     arr_col = find_column(rows[0], ARR_HEADERS)
     time_col = find_column(rows[0], DEP_TIME_HEADERS)
     sim_col = find_column(rows[0], SIM_HEADERS)
+    total_col = find_column(rows[0], TOTAL_HEADERS)
     if not (date_col and dep_col and arr_col):
         sys.exit(f"Could not find date/departure/arrival columns.\n"
                  f"Headers seen: {list(rows[0])}\n"
@@ -208,13 +226,17 @@ def main():
             continue
         h, mnt = parse_time(r.get(time_col) if time_col else "")
         y, mo, d = ymd
-        flights.append({
+        flight = {
             "time": f"{d:02d}/{mo:02d}/{y:04d}T{h:02d}:{mnt:02d}Z",
             "from": [dep_ap[0], dep_ap[1]],
             "to": [arr_ap[0], arr_ap[1]],
             "from_code": dep,
             "to_code": arr,
-        })
+        }
+        hours = parse_total(r.get(total_col)) if total_col else None
+        if hours:
+            flight["hours"] = hours
+        flights.append(flight)
 
     flights.sort(key=lambda f: (f["time"][6:10], f["time"][3:5], f["time"][0:2], f["time"][11:16]))
     out = REPO / "flights.json"

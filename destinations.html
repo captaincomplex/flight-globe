@@ -6,7 +6,7 @@
   <title>Destinations Heatmap — Flight Globes</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
-  <script src="common.js"></script>
+  <script src="common.js?v=2"></script>
 </head>
 <body>
   <div id="globe"></div>
@@ -15,18 +15,27 @@
     try {
       const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
 
-      // Visit count per unique destination
+      // Visits and block time per unique destination
       const dests = new Map();
       for (const f of flights) {
         const key = `${f.endLat},${f.endLng}`;
-        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, code: f.toCode, n: 0 });
-        dests.get(key).n++;
+        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, code: f.toCode, n: 0, hours: 0 });
+        const d = dests.get(key);
+        d.n++;
+        d.hours += FG.flightHours(f);
       }
       const points = [...dests.values()];
-      const max = Math.max(...points.map(p => p.n), 1);
+
+      // Selectable metric, like James's heatmap globe
+      const METRICS = {
+        flights: { label: 'Flights', unit: 'flights', value: p => p.n, fmt: v => String(v) },
+        total_time: { label: 'Total Time', unit: 'hrs', value: p => p.hours, fmt: v => v.toFixed(1) },
+        avg_time: { label: 'Avg Flight Time', unit: 'hrs', value: p => p.hours / p.n, fmt: v => v.toFixed(1) },
+      };
+      let metric = 'flights';
 
       // James Harding's low-to-high colour ramp: blue -> cyan -> yellow -> red
-      function rampColour(v) {
+      function rampColour(v, max) {
         if (v <= 0) return 'rgba(100, 100, 100, 0.3)';
         const t = Math.log(max + 1) > 0 ? Math.log(v + 1) / Math.log(max + 1) : 0;
         let r, g, b;
@@ -36,19 +45,28 @@
         return `rgba(${r}, ${g}, ${b}, 0.85)`;
       }
 
-      const bars = points.map(p => {
-        const t = max > 1 ? Math.log(p.n + 1) / Math.log(max + 1) : 1;
-        return {
-          ...p,
-          colour: rampColour(p.n),
-          altitude: t * 0.15,
-          radius: Math.max(0.2, t * 1.5 + 0.2),
-          label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
-                    <b>${p.code || `${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}`}</b><br/>
-                    Flights: <b>${p.n}</b>
-                  </div>`,
-        };
-      });
+      const makeBars = () => {
+        const m = METRICS[metric];
+        const max = Math.max(...points.map(p => m.value(p)), 1);
+        return points.map(p => {
+          const v = m.value(p);
+          const t = max > 1 ? Math.log(v + 1) / Math.log(max + 1) : 1;
+          return {
+            ...p,
+            colour: rampColour(v, max),
+            altitude: t * 0.15,
+            radius: Math.max(0.2, t * 1.5 + 0.2),
+            label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
+                      <b>${p.code || `${p.lat.toFixed(2)}, ${p.lng.toFixed(2)}`}</b><br/>
+                      ${m.label}: <b>${m.fmt(v)}</b> ${m.unit}
+                    </div>`,
+          };
+        });
+      };
+      const makeHeatPoints = () => {
+        const m = METRICS[metric];
+        return points.map(p => ({ lat: p.lat, lng: p.lng, weight: m.value(p) }));
+      };
 
       const globe = Globe()(document.getElementById('globe'))
         .globeImageUrl('assets/earth-night-hd.jpg')
@@ -64,15 +82,15 @@
         .pointRadius('radius')
         .heatmapPointLat('lat')
         .heatmapPointLng('lng')
-        .heatmapPointWeight('n')
+        .heatmapPointWeight('weight')
         .heatmapBandwidth(1)
         .heatmapColorSaturation(2.8)
         .heatmapTopAltitude(0.15);
 
       let mode = 'bars';
       const apply = () => {
-        globe.pointsData(mode === 'bars' ? bars : []);
-        globe.heatmapsData(mode === 'gradient' ? [{ points }] : []);
+        globe.pointsData(mode === 'bars' ? makeBars() : []);
+        globe.heatmapsData(mode === 'gradient' ? [{ points: makeHeatPoints() }] : []);
         globe.heatmapPoints('points');
       };
       apply();
@@ -85,6 +103,14 @@
         globe.controls().autoRotate = on;
         globe.controls().autoRotateSpeed = 0.2;
       });
+      const metricSel = document.createElement('select');
+      for (const [k, { label }] of Object.entries(METRICS)) {
+        const o = document.createElement('option');
+        o.value = k; o.textContent = label;
+        metricSel.appendChild(o);
+      }
+      metricSel.addEventListener('change', () => { metric = metricSel.value; apply(); });
+      panel.appendChild(metricSel);
       const modeBtn = document.createElement('button');
       const renderMode = () => { modeBtn.innerHTML = `Mode <b>${mode === 'bars' ? 'Bars' : 'Gradient'}</b>`; };
       modeBtn.addEventListener('click', () => { mode = mode === 'bars' ? 'gradient' : 'bars'; renderMode(); apply(); });

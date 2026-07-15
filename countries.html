@@ -6,7 +6,7 @@
   <title>Countries — Flight Globes</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js"></script>
-  <script src="common.js"></script>
+  <script src="common.js?v=2"></script>
 </head>
 <body>
   <div id="globe"></div>
@@ -25,9 +25,11 @@
           if (c) touched.set(c, [lat, lng]);
         }
         for (const [c, pt] of touched) {
-          if (!visits.has(c)) visits.set(c, { n: 0, pts: [] });
-          visits.get(c).n++;
-          visits.get(c).pts.push(pt);
+          if (!visits.has(c)) visits.set(c, { n: 0, pts: [], hours: 0 });
+          const v = visits.get(c);
+          v.n++;
+          v.pts.push(pt);
+          v.hours += FG.flightHours(f);
         }
       }
 
@@ -52,13 +54,15 @@
         return { ...feature, geometry: { type: 'MultiPolygon', coordinates: kept } };
       }
 
-      const polygons = [...visits.entries()].map(([feature, { n, pts }]) => ({
+      const polygons = [...visits.entries()].map(([feature, { n, pts, hours }]) => ({
         ...pruneGeometry(feature, pts),
         altitude: (Math.log(n) + 0.1) / 15,
         capColour: `rgba(${Math.round(Math.log10(n) / 3 * 255)}, 0, ${255 - Math.round(Math.log10(n) / 3 * 255)}, 0.8)`,
         label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
                   <b>${feature.properties.NAME_CIAWF || feature.properties.ADMIN}</b><br/>
-                  Flights: <b>${n}</b>
+                  Flights: <b>${n}</b><br/>
+                  Average Flight Time: <b>${(hours / n).toFixed(1)} hours</b><br/>
+                  Total Time: <b>${Math.round(hours)} hours</b>
                 </div>`,
       }));
 

@@ -25,6 +25,7 @@ const FG = (() => {
         endLat: f.to[0], endLng: f.to[1],
         fromCode: f.from_code || null,
         toCode: f.to_code || null,
+        hours: typeof f.hours === 'number' ? f.hours : null,
         distanceKm: haversineKm(f.from[0], f.from[1], f.to[0], f.to[1]),
       }))
       .sort((a, b) => a.date - b.date);
@@ -108,7 +109,12 @@ const FG = (() => {
       : (f.toCode || `${f.endLat.toFixed(2)}, ${f.endLng.toFixed(2)}`);
   }
 
-  return { loadFlights, loadCountries, countryOf, centroid, fitToWindow, panel, toggleButton, showError, haversineKm, placeName };
+  // Real block time when the logbook provides it, else a cruise-speed estimate
+  function flightHours(f) {
+    return f.hours != null ? f.hours : Math.max(f.distanceKm / 750, 0.15);
+  }
+
+  return { loadFlights, loadCountries, countryOf, centroid, fitToWindow, panel, toggleButton, showError, haversineKm, placeName, flightHours };
 })();
 
 window.addEventListener('error', e => FG.showError(e));

@@ -37,13 +37,16 @@ Edit `flights.json` to add flights. Each entry is:
   "from": [52.0407981873, -1.09555995464],
   "to": [52.6758003235, 1.28278005123],
   "from_code": "EGKK",
-  "to_code": "LEPA"
+  "to_code": "LEPA",
+  "hours": 2.25
 }
 ```
 
 `time` is `DD/MM/YYYY` followed by `T HH:MM Z`; `from`/`to` are `[latitude, longitude]`
 in decimal degrees. `from_code`/`to_code` are optional airport codes — when present,
-the globes show them in tooltips and the timeline info card.
+the globes show them in tooltips and the timeline info card. `hours` is the optional
+block time in decimal hours; it drives the traffic-dash speeds, tooltips, and the
+heatmap's time metrics, with a great-circle estimate as fallback.
 
 ### Importing from CrewLounge PILOTLOG
 
