@@ -23,24 +23,64 @@
         routes.get(key).count++;
       }
 
-      const fmt = d => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-      let animate = true;
-      const arcData = () => [...routes.values()].map(r => ({
-        ...r,
-        colour: ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)'],
-        stroke: animate ? 0.5 : 0.3,
-        dashLength: animate ? 0.05 : 1,
-        dashGap: animate ? 0.95 : 0,
-        dashAnimateTime: animate ? Math.max(1200, r.distanceKm * 10) : 0,
-        dashInitialGap: Math.random(),
-        label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
-                  <b>${FG.placeName(r, 'from')} &rarr; ${FG.placeName(r, 'to')}</b><br/>
-                  Flights: <b>${r.count}</b><br/>
-                  Distance: <b>${Math.round(r.distanceKm)} km</b>
-                </div>`,
-      }));
+      const depCounts = new Map();
+      for (const f of flights) depCounts.set(f.fromCode, (depCounts.get(f.fromCode) || 0) + 1);
+      const homeBase = [...depCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 
-      const endpoints = [...routes.values()].map(r => ({ lat: r.endLat, lng: r.endLng }));
+      let animate = true, hideInbound = false, filter = '';
+
+      // Ported from James Harding's all-flights globe: each route contributes a
+      // faint persistent arc plus an animated "traffic" dash on top (the static
+      // arc is dropped when animation is off). Home-base departures are
+      // yellow->red, everything else blue->green; filtered-out routes dim to
+      // near-white.
+      const DIM = ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.05)'];
+      const arcData = () => {
+        const out = [];
+        for (const r of routes.values()) {
+          const isHome = homeBase && r.fromCode === homeBase;
+          const baseColour = isHome
+            ? ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)']
+            : ['rgba(0, 0, 255, 0.5)', 'rgba(0, 255, 0, 0.5)'];
+          const trafficColour = isHome
+            ? ['rgba(255, 255, 0, 0.7)', 'rgba(255, 0, 0, 0.7)']
+            : baseColour;
+          const dimmed = filter &&
+            !(r.fromCode || '').includes(filter) && !(r.toCode || '').includes(filter);
+          const heightScale = isHome ? 0.21 : 0.2;
+          const label = `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
+              <b>${FG.placeName(r, 'from')} &rarr; ${FG.placeName(r, 'to')}</b><br/>
+              Flights: <b>${r.count}</b><br/>
+              Distance: <b>${Math.round(r.distanceKm)} km</b>
+            </div>`;
+          const estHours = Math.max(r.distanceKm / 750, 0.5);
+          if (animate) {
+            if (hideInbound && r.toCode === homeBase) continue;
+            out.push({
+              ...r, heightScale, stroke: 0.05, colour: dimmed ? DIM : baseColour,
+              dashLength: 1, dashGap: 0, animateTime: 0, initialGap: 0, label,
+            });
+            out.push({
+              ...r, heightScale, stroke: 0.5, colour: dimmed ? DIM : trafficColour,
+              dashLength: 0.05, dashGap: 0.95, animateTime: estHours * 2000,
+              initialGap: Math.random(), label,
+            });
+          } else {
+            out.push({
+              ...r, heightScale, stroke: 0.1, colour: dimmed ? DIM : trafficColour,
+              dashLength: 1, dashGap: 0, animateTime: 0, initialGap: 0, label,
+            });
+          }
+        }
+        return out;
+      };
+
+      // White dot + code at every destination, like James's labelsData
+      const dests = new Map();
+      for (const f of flights) {
+        const key = `${f.endLat},${f.endLng}`;
+        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, code: f.toCode || '' });
+      }
 
       const globe = Globe()(document.getElementById('globe'))
         .showGraticules(true)
@@ -50,18 +90,22 @@
         .hexPolygonColor(() => 'rgba(255, 255, 255, 0.1)')
         .arcsData(arcData())
         .arcColor('colour')
-        .arcAltitudeAutoScale(0.5)
+        .arcAltitudeAutoScale('heightScale')
         .arcStroke('stroke')
         .arcDashLength('dashLength')
         .arcDashGap('dashGap')
-        .arcDashAnimateTime('dashAnimateTime')
-        .arcDashInitialGap('dashInitialGap')
+        .arcDashAnimateTime('animateTime')
+        .arcDashInitialGap('initialGap')
         .arcsTransitionDuration(0)
         .arcLabel('label')
-        .pointsData(endpoints)
-        .pointColor(() => '#ffffff')
-        .pointAltitude(0.002)
-        .pointRadius(0.12);
+        .labelsData([...dests.values()])
+        .labelLat('lat')
+        .labelLng('lng')
+        .labelText('code')
+        .labelDotRadius(0.1)
+        .labelSize(0.2)
+        .labelColor(() => '#FFFFFF')
+        .labelsTransitionDuration(0);
 
       FG.fitToWindow(globe);
       globe.pointOfView({ ...FG.centroid(flights), altitude: 1 });
@@ -72,6 +116,15 @@
         globe.controls().autoRotate = on;
         globe.controls().autoRotateSpeed = 0.2;
       });
+      FG.toggleButton(panel, 'Inbound', true, on => { hideInbound = !on; globe.arcsData(arcData()); });
+      const filterInput = document.createElement('input');
+      filterInput.type = 'text';
+      filterInput.placeholder = 'Filter eg. LGW';
+      filterInput.addEventListener('input', e => {
+        const v = e.target.value.trim().toUpperCase();
+        if (v.length === 0 || v.length >= 3) { filter = v; globe.arcsData(arcData()); }
+      });
+      panel.appendChild(filterInput);
     } catch (err) { FG.showError(err); }
   })();
   </script>

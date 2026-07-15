@@ -10,10 +10,17 @@
 </head>
 <body>
   <div id="globe"></div>
+  <div class="transport">
+    <input type="range" id="scrubber" min="0" max="0" value="0" />
+    <div class="counter" id="when"></div>
+    <div class="counter" id="counter">0 / 0</div>
+  </div>
   <script>
   (async () => {
     try {
       const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
+      const N = flights.length;
+      const PER_FLIGHT_MS = 100;
 
       // Home base = most frequent departure airport; its flights get James's
       // yellow->red colouring, everything else the green->cyan pair.
@@ -26,6 +33,7 @@
       // flight is lit at any moment, and they fire in date order.
       const arcs = flights.map((f, i) => ({
         ...f,
+        seq: i,
         colour: homeBase && f.fromCode === homeBase
           ? ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)']
           : ['rgba(0, 255, 0, 0.2)', 'rgba(0, 255, 255, 0.8)'],
@@ -50,8 +58,8 @@
         .arcAltitudeAutoScale(0.5)
         .arcStroke(0.3)
         .arcDashLength(1)
-        .arcDashGap(Math.max(arcs.length - 1, 0))
-        .arcDashAnimateTime(238)
+        .arcDashGap(Math.max(N - 1, 0))
+        .arcDashAnimateTime(PER_FLIGHT_MS)
         .arcDashInitialGap('initialGap')
         .arcsTransitionDuration(0)
         .labelsData([...dests.values()])
@@ -72,6 +80,34 @@
         globe.controls().autoRotate = on;
         globe.controls().autoRotateSpeed = 0.2;
       });
+
+      // Timeline bar: tracks which flight the dash cycle is lighting up, and
+      // scrubbing re-phases every arc's initialGap so the cycle restarts from
+      // the chosen flight.
+      const scrubber = document.getElementById('scrubber');
+      const when = document.getElementById('when');
+      const counter = document.getElementById('counter');
+      scrubber.max = Math.max(0, N - 1);
+      let baseIdx = 0, t0 = performance.now(), scrubbing = false;
+
+      function setPhase(idx) {
+        baseIdx = idx;
+        t0 = performance.now();
+        for (const a of arcs) a.initialGap = ((a.seq - idx) % N + N) % N;
+        globe.arcsData(arcs);
+      }
+      scrubber.addEventListener('input', e => { scrubbing = true; setPhase(+e.target.value); scrubbing = false; });
+
+      const fmt = d => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+      (function tick() {
+        const idx = (baseIdx + Math.floor((performance.now() - t0) / PER_FLIGHT_MS)) % N;
+        if (!scrubbing) {
+          scrubber.value = idx;
+          when.textContent = fmt(flights[idx].date);
+          counter.textContent = `${idx + 1} / ${N}`;
+        }
+        requestAnimationFrame(tick);
+      })();
     } catch (err) { FG.showError(err); }
   })();
   </script>
