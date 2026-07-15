@@ -15,14 +15,29 @@
     try {
       const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
 
+      // Home base = most frequent departure airport; its flights get James's
+      // yellow->red colouring, everything else the green->cyan pair.
+      const depCounts = new Map();
+      for (const f of flights) depCounts.set(f.fromCode, (depCounts.get(f.fromCode) || 0) + 1);
+      const homeBase = [...depCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
       // James Harding's sequential trick: every arc is a single dash of length 1
       // with a gap of (N - 1) arc-lengths, staggered by index — so exactly one
       // flight is lit at any moment, and they fire in date order.
       const arcs = flights.map((f, i) => ({
         ...f,
-        colour: ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)'],
+        colour: homeBase && f.fromCode === homeBase
+          ? ['rgba(255, 255, 0, 0.5)', 'rgba(255, 0, 0, 0.5)']
+          : ['rgba(0, 255, 0, 0.2)', 'rgba(0, 255, 255, 0.8)'],
         initialGap: i,
       }));
+
+      // Red dot + code at every destination, like James's labelsData
+      const dests = new Map();
+      for (const f of flights) {
+        const key = `${f.endLat},${f.endLng}`;
+        if (!dests.has(key)) dests.set(key, { lat: f.endLat, lng: f.endLng, code: f.toCode || '' });
+      }
 
       const globe = Globe()(document.getElementById('globe'))
         .showGraticules(true)
@@ -36,10 +51,17 @@
         .arcStroke(0.3)
         .arcDashLength(1)
         .arcDashGap(Math.max(arcs.length - 1, 0))
-        // per-flight lit time: brisk for big logbooks, leisurely for small ones
-        .arcDashAnimateTime(Math.max(100, Math.min(1500, Math.round(90000 / arcs.length))))
+        .arcDashAnimateTime(238)
         .arcDashInitialGap('initialGap')
         .arcsTransitionDuration(0)
+        .labelsData([...dests.values()])
+        .labelLat('lat')
+        .labelLng('lng')
+        .labelText('code')
+        .labelDotRadius(0.2)
+        .labelSize(0.3)
+        .labelColor(() => '#FF0000')
+        .labelsTransitionDuration(0)
         .enablePointerInteraction(false);
 
       FG.fitToWindow(globe);

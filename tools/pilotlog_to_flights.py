@@ -29,6 +29,8 @@ DATE_HEADERS = ["pilotlog_date", "date"]
 DEP_HEADERS = ["af_dep", "dep", "departure", "from", "origin"]
 ARR_HEADERS = ["af_arr", "arr", "arrival", "to", "destination", "dest"]
 DEP_TIME_HEADERS = ["time_dep", "dep_time", "std", "atd", "out", "off_block", "block_off"]
+SIM_HEADERS = ["ac_issim", "is_sim", "issim", "simulator", "sim"]
+TRUTHY = {"true", "1", "yes", "y", "x"}
 
 
 # Codes missing from OurAirports, mapped to codes it does know
@@ -42,27 +44,44 @@ CODE_RE = re.compile(r"^[A-Z0-9]{3,4}$")
 
 
 def load_airports():
-    """code -> (lat, lng, name); ICAO idents take priority over IATA/FAA codes,
-    which take priority over keyword codes (where closed airports like Tegel
-    keep their retired TXL/EDDT identifiers)."""
-    by_code = {}
+    """Return a lookup(code) function.
+
+    Codes are resolved by kind, not by a single flat map: 4-letter codes hit the
+    ICAO tier first, 3-letter codes the IATA tier first, and only then the FAA
+    local/GPS identifiers and the keyword codes of closed airports. This matters:
+    a flat map lets some US airstrip whose FAA identifier happens to be "NCL"
+    shadow Newcastle's IATA code."""
+    icao, iata, local, kw = {}, {}, {}, {}
     with open(AIRPORTS_CSV, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    def add(code, r):
+    def add(tier, code, r):
         code = code.strip().upper()
         if code and code not in PLACEHOLDERS:
-            by_code[code] = (float(r["latitude_deg"]), float(r["longitude_deg"]), r["name"])
+            tier[code] = (float(r["latitude_deg"]), float(r["longitude_deg"]), r["name"])
 
-    # Lowest priority first so later (higher-priority) writes win
     for r in rows:
-        for kw in (r["keywords"] or "").split(","):
-            if CODE_RE.match(kw.strip().upper()):
-                add(kw, r)
-    for field in ("local_code", "gps_code", "iata_code", "icao_code", "ident"):
-        for r in rows:
-            add(r[field] or "", r)
-    return by_code
+        for k in (r["keywords"] or "").split(","):
+            if CODE_RE.match(k.strip().upper()):
+                add(kw, k, r)
+        add(local, r["local_code"] or "", r)
+        add(local, r["gps_code"] or "", r)
+        ident = (r["ident"] or "").strip().upper()
+        if len(ident) == 4 and ident.isalpha():
+            add(icao, ident, r)   # standard ICAO ident
+        else:
+            add(local, ident, r)  # FAA LIDs and country-prefixed pseudo-idents
+        add(icao, r["icao_code"] or "", r)
+        add(iata, r["iata_code"] or "", r)
+
+    def lookup(code):
+        tiers = (icao, iata, local, kw) if len(code) == 4 else (iata, local, kw)
+        for tier in tiers:
+            if code in tier:
+                return tier[code]
+        return None
+
+    return lookup
 
 
 def read_rows(path):
@@ -160,6 +179,7 @@ def main():
     dep_col = find_column(rows[0], DEP_HEADERS)
     arr_col = find_column(rows[0], ARR_HEADERS)
     time_col = find_column(rows[0], DEP_TIME_HEADERS)
+    sim_col = find_column(rows[0], SIM_HEADERS)
     if not (date_col and dep_col and arr_col):
         sys.exit(f"Could not find date/departure/arrival columns.\n"
                  f"Headers seen: {list(rows[0])}\n"
@@ -167,9 +187,12 @@ def main():
     print(f"Using columns: date={date_col!r}, dep={dep_col!r}, arr={arr_col!r}, "
           f"time={repr(time_col) if time_col else '(none, using 12:00)'}")
 
-    airports = load_airports()
-    flights, unknown, skipped = [], set(), 0
+    lookup = load_airports()
+    flights, unknown, skipped, sims = [], set(), 0, 0
     for r in rows:
+        if sim_col and (r.get(sim_col) or "").strip().lower() in TRUTHY:
+            sims += 1  # simulator session, not a flight
+            continue
         dep = (r.get(dep_col) or "").strip().upper()
         arr = (r.get(arr_col) or "").strip().upper()
         dep = ALIASES.get(dep, dep)
@@ -178,16 +201,17 @@ def main():
         if not dep or not arr or not ymd:
             skipped += 1
             continue
-        if dep not in airports or arr not in airports:
-            unknown.update(c for c in (dep, arr) if c not in airports)
+        dep_ap, arr_ap = lookup(dep), lookup(arr)
+        if not dep_ap or not arr_ap:
+            unknown.update(c for c, ap in ((dep, dep_ap), (arr, arr_ap)) if not ap)
             skipped += 1
             continue
         h, mnt = parse_time(r.get(time_col) if time_col else "")
         y, mo, d = ymd
         flights.append({
             "time": f"{d:02d}/{mo:02d}/{y:04d}T{h:02d}:{mnt:02d}Z",
-            "from": [airports[dep][0], airports[dep][1]],
-            "to": [airports[arr][0], airports[arr][1]],
+            "from": [dep_ap[0], dep_ap[1]],
+            "to": [arr_ap[0], arr_ap[1]],
             "from_code": dep,
             "to_code": arr,
         })
@@ -196,6 +220,8 @@ def main():
     out = REPO / "flights.json"
     out.write_text(json.dumps(flights, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {len(flights)} flights to {out}")
+    if sims:
+        print(f"Excluded {sims} simulator sessions.")
     if skipped:
         print(f"Skipped {skipped} rows (missing data or unknown airports).")
     if unknown:

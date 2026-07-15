@@ -15,19 +15,45 @@
     try {
       const [flights, countries] = await Promise.all([FG.loadFlights(), FG.loadCountries()]);
 
-      // Count flights touching each country (by where their endpoints land)
+      // Count flights touching each country (by where their endpoints land),
+      // remembering the visited points to prune remote territories below
       const visits = new Map();
       for (const f of flights) {
-        const touched = new Set();
+        const touched = new Map();
         for (const [lat, lng] of [[f.startLat, f.startLng], [f.endLat, f.endLng]]) {
           const c = FG.countryOf(countries, lat, lng);
-          if (c) touched.add(c);
+          if (c) touched.set(c, [lat, lng]);
         }
-        for (const c of touched) visits.set(c, (visits.get(c) || 0) + 1);
+        for (const [c, pt] of touched) {
+          if (!visits.has(c)) visits.set(c, { n: 0, pts: [] });
+          visits.get(c).n++;
+          visits.get(c).pts.push(pt);
+        }
       }
 
-      const polygons = [...visits.entries()].map(([feature, n]) => ({
-        ...feature,
+      // Natural Earth draws overseas territories as part of the parent country
+      // (French Guiana is a polygon of France). Keep only the parts of each
+      // country's shape within 2,000 km of an airport actually visited there.
+      const NEAR_KM = 2000;
+      function polygonNear(coords, pts) {
+        const ring = coords[0];
+        const step = Math.max(1, Math.floor(ring.length / 24));
+        for (let i = 0; i < ring.length; i += step) {
+          for (const [lat, lng] of pts) {
+            if (FG.haversineKm(lat, lng, ring[i][1], ring[i][0]) < NEAR_KM) return true;
+          }
+        }
+        return false;
+      }
+      function pruneGeometry(feature, pts) {
+        const g = feature.geometry;
+        if (g.type !== 'MultiPolygon') return feature;
+        const kept = g.coordinates.filter(c => polygonNear(c, pts));
+        return { ...feature, geometry: { type: 'MultiPolygon', coordinates: kept } };
+      }
+
+      const polygons = [...visits.entries()].map(([feature, { n, pts }]) => ({
+        ...pruneGeometry(feature, pts),
         altitude: (Math.log(n) + 0.1) / 15,
         capColour: `rgba(${Math.round(Math.log10(n) / 3 * 255)}, 0, ${255 - Math.round(Math.log10(n) / 3 * 255)}, 0.8)`,
         label: `<div style="background:rgba(0,0,0,.8);padding:8px;border-radius:8px">
